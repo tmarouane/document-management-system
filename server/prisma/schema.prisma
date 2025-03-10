@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(uuid())
+  email       String       @unique
+  password    String
+  name        String
+  role        Role         @default(VIEWER)
+  department  String?
+  avatar      String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  documents   Document[]   @relation("UploadedDocuments")
+  favorites   Document[]   @relation("FavoriteDocuments")
+  activities  Activity[]
+  permissions Permission[]
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  EDITOR
+  VIEWER
+}
+
+model Document {
+  id            String      @id @default(uuid())
+  title         String
+  description   String?
+  fileName      String
+  fileSize      Int
+  fileType      String
+  path          String
+  location      String      // S3 or storage location
+  folderId      String?
+  folder        Folder?     @relation(fields: [folderId], references: [id])
+  uploadedById  String
+  uploadedBy    User        @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  version       Int         @default(1)
+  status        Status      @default(ACTIVE)
+  tags          Tag[]
+  activities    Activity[]
+  favoriteBy    User[]      @relation("FavoriteDocuments")
+  permissions   Permission[]
+}
+
+enum Status {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+model Folder {
+  id          String     @id @default(uuid())
+  name        String
+  path        String     @unique
+  parentId    String?
+  parent      Folder?    @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children    Folder[]   @relation("FolderHierarchy")
+  documents   Document[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  documents Document[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Activity {
+  id          String       @id @default(uuid())
+  type        ActivityType
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  documentId  String?
+  document    Document?    @relation(fields: [documentId], references: [id])
+  description String
+  createdAt   DateTime     @default(now())
+  metadata    Json?        // Additional activity information
+}
+
+enum ActivityType {
+  UPLOAD
+  DOWNLOAD
+  VIEW
+  EDIT
+  DELETE
+  SHARE
+  COMMENT
+  VERSION
+}
+
+model Permission {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  documentId  String
+  document    Document      @relation(fields: [documentId], references: [id])
+  accessType  AccessType
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  expiresAt   DateTime?
+
+  @@unique([userId, documentId])
+}
+
+enum AccessType {
+  OWNER
+  EDITOR
+  VIEWER
+}
